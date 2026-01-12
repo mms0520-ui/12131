@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电影时长数据新闻（复刻版）</title>
+    <!-- 引入D3.js（无需本地安装） -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* 基础样式（复刻目标页面极简风格） */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        h1 { font-size: 2.2rem; margin: 40px 0 20px; color: #333; }
+        p { font-size: 1.1rem; margin: 20px 0; color: #555; }
+        /* 滚动容器 */
+        .scrolly-container { position: relative; margin: 80px 0; }
+        .scrolly-text { position: relative; z-index: 1; margin: 100px 0; }
+        /* 图表容器（固定位置，滚动时更新） */
+        .chart-container { position: sticky; top: 100px; z-index: 0; height: 500px; margin: -100px 0; }
+        svg { width: 100%; height: 100%; }
+        .axis-label { font-size: 0.9rem; fill: #666; }
+        .title { font-size: 1.2rem; font-weight: bold; fill: #333; }
+    </style>
+</head>
+<body>
+    <h1>电影时长越来越长了吗？</h1>
+    <p>过去20年，主流电影的平均时长发生了显著变化。通过数据可视化，我们可以清晰看到这一趋势。</p>
+
+    <!-- 滚动叙事核心容器 -->
+    <div class="scrolly-container">
+        <!-- 文字内容（滚动时显示） -->
+        <div class="scrolly-text">
+            <p>2000年，全球上映的主流电影平均时长约105分钟，彼时好莱坞大片以紧凑的叙事为主。</p>
+        </div>
+
+        <div class="chart-container" id="chart1"></div>
+
+        <div class="scrolly-text">
+            <p>2010年，随着超级英雄电影兴起，平均时长上升至112分钟，导演有了更多空间铺垫剧情。</p>
+        </div>
+
+        <div class="chart-container" id="chart2"></div>
+
+        <div class="scrolly-text">
+            <p>2020年，流媒体平台崛起，电影时长进一步增加到120分钟，长镜头、慢叙事成为新趋势。</p>
+        </div>
+
+        <div class="chart-container" id="chart3"></div>
+    </div>
+
+    <script>
+        // 模拟数据（替换成你的真实数据）
+        const data2000 = [{ year: 2000, duration: 105 }];
+        const data2010 = [{ year: 2010, duration: 112 }];
+        const data2020 = [
+            { year: 2000, duration: 105 },
+            { year: 2010, duration: 112 },
+            { year: 2020, duration: 120 }
+        ];
+
+        // 通用绘图函数（复用逻辑，减少重复代码）
+        function drawChart(containerId, data) {
+            // 清空容器
+            d3.select(`#${containerId}`).html("");
+            
+            // 设置画布尺寸
+            const width = 800;
+            const height = 400;
+            const margin = { top: 40, right: 30, bottom: 50, left: 60 };
+
+            // 创建SVG
+            const svg = d3.select(`#${containerId}`)
+                .append("svg")
+                .attr("viewBox", `0 0 ${width} ${height}`);
+
+            // 创建比例尺
+            const xScale = d3.scaleLinear()
+                .domain([1995, 2025])
+                .range([margin.left, width - margin.right]);
+
+            const yScale = d3.scaleLinear()
+                .domain([100, 125])
+                .range([height - margin.bottom, margin.top]);
+
+            // 绘制折线
+            const line = d3.line()
+                .x(d => xScale(d.year))
+                .y(d => yScale(d.duration));
+
+            svg.append("path")
+                .datum(data)
+                .attr("fill", "none")
+                .attr("stroke", "#2c3e50")
+                .attr("stroke-width", 3)
+                .attr("d", line);
+
+            // 绘制数据点
+            svg.selectAll("circle")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("cx", d => xScale(d.year))
+                .attr("cy", d => yScale(d.duration))
+                .attr("r", 6)
+                .attr("fill", "#e74c3c");
+
+            // 绘制坐标轴
+            // X轴
+            svg.append("g")
+                .attr("transform", `translate(0, ${height - margin.bottom})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+
+            // Y轴
+            svg.append("g")
+                .attr("transform", `translate(${margin.left}, 0)`)
+                .call(d3.axisLeft(yScale));
+
+            // 坐标轴标签
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height - 10)
+                .attr("text-anchor", "middle")
+                .classed("axis-label", true)
+                .text("年份");
+
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -height / 2)
+                .attr("y", 20)
+                .attr("text-anchor", "middle")
+                .classed("axis-label", true)
+                .text("平均时长（分钟）");
+
+            // 图表标题
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", margin.top / 2)
+                .attr("text-anchor", "middle")
+                .classed("title", true)
+                .text("全球主流电影平均时长变化");
+        }
+
+        // 初始化绘制所有图表
+        drawChart("chart1", data2000);
+        drawChart("chart2", data2010);
+        drawChart("chart3", data2020);
+
+        // 滚动触发效果（进阶：滚动时动态更新图表）
+        window.addEventListener("scroll", function() {
+            const scrollPosition = window.scrollY;
+            // 可根据滚动位置调整图表动画（比如渐变显示、数据更新）
+            // 新手可先注释这部分，熟悉基础后再拓展
+        });
+    </script>
+</body>
+</html>
