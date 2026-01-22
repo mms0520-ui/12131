@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>慢性病年轻化数据新闻 - 完整版</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        /* ==================== 1. 全局基础样式 ==================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { height: 100%; overflow: hidden; background: #fff3f6; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; color: #333; }
+        
+        /* 页面滚动容器 */
+        .page-scroller {
+            height: 100vh; width: 100vw;
+            transition: transform 1s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+        .section {
+            height: 100vh; width: 100vw;
+            position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            background-color: #fff3f6; /* 统一粉色背景 */
+        }
+
+        /* 强制覆盖 Organs 和 Portrait 的背景，确保一致 */
+        #section-organs, #section-portrait {
+            background-color: #fff3f6 !important;
+        }
+
+        /* 通用变量 */
+        :root {
+            --male-color: #7cc9f6; --female-color: #ff9ca9;
+            --urban-color: #fce599; --rural-color: #b9a2ff;
+            --staff-color: #b1ddff; --civil-color: #cffa89; --rare-color: #f9b97d;
+            --text-soft: #8a7d7d; --glass-bg: rgba(255, 255, 255, 0.6);
+            --stamp-red: #ff6b6b;
+        }
+
+        /* 磨砂玻璃卡片 */
+        .glass-card {
+            background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-radius: 40px; border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 悬浮提示框 (Tooltip) */
+        #organ-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 9999;
+            transform: translate(-50%, -120%); /* 位于鼠标上方 */
+            white-space: nowrap;
+        }
+
+        /* ==================== 2. 第一部分：案例警示样式 ==================== */
+        .case-container { width: 100%; max-width: 1300px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        .title-slide { position: absolute; top: 0; left: 50%; margin-left: -50vw; width: 100vw; height: 100vh; opacity: 1; transition: all 0.8s ease; transform: translateY(0); z-index: 5; display: flex; align-items: center; justify-content: center; }
+        .title-slide.fade-out { opacity: 0; transform: translateY(-50px); pointer-events: none; }
+        
+        .title-gif { 
+            width: auto; 
+            height: auto; 
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain; 
+        }
+
+        .content-slide { display: flex; width: 90%; height: 75vh; opacity: 0; transform: translateY(50px); transition: all 1s ease; align-items: center; justify-content: space-between; padding: 50px; position: absolute; }
+        .content-slide.active { opacity: 1; transform: translateY(0); }
+        .case-text-box { flex: 1.2; padding-right: 50px; font-size: 16px; line-height: 1.8; color: #555; text-align: justify; height: 100%; overflow-y: auto; }
+        .case-text-box p { margin-bottom: 20px; text-indent: 2em; }
+        .case-img-box { flex: 0.8; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+        .report-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); transition: all 0.8s ease; position: absolute; }
+        .case-img-box .report-img:hover { transform: scale(1.8) !important; z-index: 10; }
+        .report-img.red-version { opacity: 0; transform: scale(0.95); }
+        .case-text-box.alert-mode p { color: #888; transition: color 0.5s; }
+        .case-text-box.alert-mode p:last-child { color: #d32f2f; font-weight: bold; }
+        .content-slide.alert-state .report-img.normal-version { opacity: 0; transform: scale(1.05); }
+        .content-slide.alert-state .report-img.red-version { opacity: 1; transform: scale(1); box-shadow: 0 15px 40px rgba(211, 47, 47, 0.2); }
+
+        /* ==================== 3. 第二部分：年龄分布样式（已修改） ==================== */
+        .s2-container { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100%; 
+            width: 100%; 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 0 40px; 
+        }
+
+        /* 左侧区域：包含文字和水印 */
+        .s2-left-pane {
+            flex: 1;                /* 占左边部分 */
+            height: 500px;          /* 增加高度区域 */
+            position: relative;     /* 作为绝对定位的基准 */
+            display: flex;
+            align-items: center;    /* 文字垂直居中 */
+            justify-content: flex-start; /* 文字靠左对齐 */
+        }
+
+        /* 文字描述框 */
+        .desc-box { 
+            position: relative; 
+            z-index: 2;             /* 文字在最上层 */
+            width: 100%;
+            height: 200px;          /* 限制文字活动区域高度 */
+        }
+
+        /* 具体的文字段落 */
+        .desc-item { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            opacity: 0; 
+            transform: translateY(20px); 
+            transition: all 0.8s ease; 
+            font-size: 20px;        /* 稍微加大字号 */
+            line-height: 1.8; 
+            color: #444; 
+            width: 90%;             /* 宽度限制 */
+            font-weight: 500;
+        }
+
+        .desc-item.active { 
+            opacity: 1; 
+            transform: translateY(0); 
+        }
+
+        /* 年份水印：放在左侧区域的底部/背景 */
+        .year-label { 
+            position: absolute;
+            bottom: 0;              /* 沉底 */
+            left: -20px;            /* 稍微向左溢出一点更有设计感 */
+            font-size: 10vw;        /* 保持大字体 */
+            font-weight: 900; 
+            color: rgba(0, 0, 0, 0.04); /* 极淡的颜色作为水印 */
+            user-select: none; 
+            z-index: 0;             /* 最底层 */
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        /* 右侧区域：图表 */
+        .chart-box { 
+            flex: 1.2;              /* 占右边稍宽的部分 */
+            height: 600px; 
+            position: relative; 
+        }
+
+        /* ==================== 4. 第三部分：器官交互样式 ==================== */
+        .organ-wrapper { display: flex; align-items: center; justify-content: center; position: relative; width: 1200px; height: 100%; }
+        #canvas-container { position: relative; background: transparent; width: 482px; height: 668px; z-index: 10; }
+        .body-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+        
+        .pop-img {
+            position: absolute; top: 50%; width: 450px; height: 650px; object-fit: contain;
+            background-color: transparent; box-shadow: none; border: none; border-radius: 0;
+            filter: url(#knockout-shadow);
+            opacity: 0; visibility: hidden; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none; z-index: 5; display: block;
+        }
+        .pop-img.left { right: 52%; margin-right: 250px; transform: translateY(-50%) translateX(30px); }
+        .pop-img.right { left: 52%; margin-left: 250px; transform: translateY(-50%) translateX(-30px); }
+        .pop-img.active { opacity: 1; visibility: visible; transform: translateY(-50%) translateX(0); }
+
+        .organ-group { cursor: pointer; transform-origin: center; transform-box: fill-box; transition: all 0.4s; }
+        .organ-group image { opacity: 0; transform: scale(0.98); pointer-events: none; transform-origin: center; transform-box: fill-box; transition: all 0.3s ease; }
+        .hit-area { fill: transparent; stroke: transparent; stroke-width: 5px; transition: fill 0.3s; }
+        .body-svg:hover .organ-group { opacity: 0.3; filter: grayscale(80%); }
+        .body-svg:hover .organ-group:hover { opacity: 1; filter: none; z-index: 1000; }
+        .organ-group:hover image { opacity: 1; transform: scale(1.35); filter: drop-shadow(0 15px 30px rgb(253, 100, 100)); }
+        
+        /* ==================== 5. 第四部分：人群画像样式 ==================== */
+        .card-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transition: all 0.8s cubic-bezier(.4, 0, .2, 1); transform: translateX(100%); opacity: 0; z-index: 1; }
+        .card-wrapper.active { transform: translateX(0); opacity: 1; z-index: 2; }
+        .card-wrapper.slide-out { transform: translateX(-100%); opacity: 0; }
+        .dimension-container { width: 600px; padding: 50px; position: relative; }
+        .dimension-title { font-size: 26px; color: #9e9191; text-align: center; margin-bottom: 30px; letter-spacing: 2px; }
+        .svg-wrapper { width: 100%; display: flex; justify-content: center; }
+        .legend { display: flex; justify-content: center; gap: 20px; margin-top: 40px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-right: 8px; }
+        .page-indicator { position: absolute; bottom: 30px; display: flex; gap: 15px; z-index: 100; left: 50%; transform: translateX(-50%); }
+        .indicator-dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; cursor: pointer; transition: all 0.3s ease; }
+        .indicator-dot.active { background: var(--text-soft); box-shadow: 0 0 8px rgba(138, 125, 125, 0.5); }
+
+        /* ==================== 6. 第五部分：生活方式样式 ==================== */
+        #section-lifestyle {
+            background-color: #ffffff; /* 黑色背景 */
+            position: relative;
+        }
+        .ls-stage {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: transform 1.2s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+        #stage-intro { background-color: #333333; z-index: 50; display: flex; justify-content: center; align-items: center; color: white; font-size: 3vw; font-weight: bold; }
+        #stage-sleep { background-color: #4a4d4fdf; z-index: 40; transform: translateY(100%); }
+        #stage-diet { background-color: #4a4d4fdf; z-index: 30; transform: translateY(100%); }
+        #stage-sit { background-color: #4a4d4fdf; z-index: 20; transform: translateY(100%); }
+        #stage-smoke { background-color: #4a4d4fdf; z-index: 10; transform: translateY(100%); }
+
+        /* 生活方式内部元素 */
+        #sleep-title { position: absolute; top: -100px; left: 50%; transform: translateX(-50%); color: white; font-size: 32px; font-weight: bold; transition: top 1.2s ease; width: 100%; text-align: center;}
+        #sleep-content { display: flex; width: 85%; height: 100%; margin: 0 auto; align-items: center; color: white; }
+        #sleep-content .img-box { flex: 6; text-align: center; }
+        #sleep-content .img-box img { max-width: 75%; }
+        #sleep-content .text-box { flex: 4; padding-left: 40px; }
+        
+        #diet-title { position: absolute; bottom: 8%; left: 5%; color: white; font-size: 36px; font-weight: bold; opacity: 0; transition: all 1.2s ease; z-index: 20; }
+        
+        #diet-text-container { 
+            position: absolute; 
+            top: 8%; 
+            right: 5%; 
+            width: 60%;
+            color: white; 
+            opacity: 0; 
+            transition: opacity 1s; 
+            z-index: 20; 
+        }
+        
+        .diet-main-text { font-size: 18px; line-height: 1.8; white-space: pre-line; }
+        .diet-sub-title { font-size: 26px; font-weight: bold; margin-bottom: 15px; display: block; }
+        #diet-line { position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .food-item { position: absolute; width: 180px; height: 180px; object-fit: contain; transform: translate(-50%, -50%); transition: all 0.9s; opacity: 0; z-index: 10; }
+        #table-img { position: absolute; width: 350px; left: 10%; top: 32%; transform: translate(-50%, -50%); z-index: 11; opacity: 0; transition: opacity 1s; }
+
+        #sit-title { position: absolute; left: 50%; transform: translateX(-50%); color: white; font-weight: bold; transition: all 1.2s ease; z-index: 100; font-size: 32px; top: -100px; }
+        #sit-text-container { position: absolute; color: white; transition: all 0.8s; z-index: 40; top: 10%; left: 10%; width: 80%; text-align: center; opacity: 0; }
+        #sit-main-text { font-size: 24px; line-height: 1.6; }
+        .sit-img { position: absolute; transition: all 0.9s; object-fit: contain; transform: translate(-50%, -50%); }
+        .quote-img { z-index: 45; pointer-events: none; }
+
+        #smoke-title { position: absolute; left: 5%; top: 5%; color: white; font-size: 36px; font-weight: bold; opacity: 0; transition: 1s ease; z-index: 100; }
+        #dice-img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 200px; opacity: 0; transition: all 1s ease; animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translate(-50%, -50%); } 50% { transform: translate(-50%, -55%); } }
+        
+        #smoke-text-container { 
+            position: absolute; 
+            color: white; 
+            transition: all 0.8s ease; 
+            z-index: 50; 
+            line-height: 1.8; 
+            word-break: break-all;
+            width: 45%;
+            top: 20%;
+            left: 8%;
+            text-align: justify;
+            font-size: 18px;
+        }
+
+        .smoke-assets { position: absolute; transition: all 1.2s; }
+        #wine-img { bottom: -500px; right: -500px; width: 450px; z-index: 60; }
+        #smoke-img { right: -600px; top: 40%; width: 350px; transform: rotate(300deg); z-index: 61; }
+
+        /* ==================== 7. 第六部分：处方单样式 ==================== */
+        .prescription-wrapper { display: flex; gap: 40px; align-items: flex-start; max-width: 1000px; width: 100%; }
+        .icon-bar { display: flex; flex-direction: column; gap: 20px; flex: 1; }
+        .icon-btn { display: flex; align-items: center; gap: 15px; padding: 15px 25px; background: rgba(255, 255, 255, 0.8); border-radius: 50px; cursor: pointer; transition: all 0.3s ease; border: 1px solid rgba(255, 255, 255, 0.9); }
+        .icon-btn:hover { transform: translateX(10px); background: #fff; }
+        .icon-emoji { font-size: 32px; }
+        .rx-paper { flex: 1.8; border-radius: 30px; padding: 40px 50px; min-height: 450px; position: relative; }
+        .paper-header { text-align: center; border-bottom: 2px dashed #e0d0d0; margin-bottom: 30px; padding-bottom: 15px; }
+        .content-line { font-size: 16px; line-height: 2.2; min-height: 40px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); margin-bottom: 15px; color: #555; }
+        .stamp { position: absolute; right: 40px; bottom: 40px; width: 90px; height: 90px; border: 3px solid var(--stamp-red); color: var(--stamp-red); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; transform: rotate(25deg) scale(0); opacity: 0; transition: all 0.5s; mix-blend-mode: multiply; }
+        .stamp.show { transform: rotate(-15deg) scale(1); opacity: 0.8; }
+    </style>
+</head>
+
+<body>
+    <svg width="0" height="0" style="position: absolute; pointer-events: none;">
+        <defs>
+            <filter id="knockout-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="blur"/>
+                <feOffset in="blur" dx="0" dy="10" result="offsetBlur"/>
+                <feFlood flood-color="black" flood-opacity="0.5" result="shadowColor"/>
+                <feComposite in="shadowColor" in2="offsetBlur" operator="in" result="coloredShadow"/>
+                <feComposite in="coloredShadow" in2="SourceAlpha" operator="out" result="outerShadow"/>
+                <feMerge>
+                    <feMergeNode in="outerShadow"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="organ-tooltip"></div>
+
+    <div class="page-scroller" id="scroller">
+
+        <section class="section" id="section-case">
+            <div class="case-container">
+                <div class="title-slide" id="case-title">
+                    <img src="标题.gif" class="title-gif" alt="标题动图">
+                </div>
+                <div class="content-slide glass-card" id="case-content">
+                    <div class="case-text-box" id="case-text">
+                        <p>21 岁的小兰（化名），亲手将二型糖尿病 “喂” 进了身体里。当二型糖尿病的诊断书递到她手上时，这个刚上大学的年轻人清楚地知道，这是自己身体长期透支健康的必然结果。</p>
+                        <p>过去两年，小兰的生活节奏完全脱离了正轨，饮食习惯更是糟糕到了极点。每晚正餐只剩馒头、包子、烙饼这类纯碳水食物，蔬菜几乎从餐桌上消失。直到一次偶然的机会尝到雪媚娘，小兰彻底陷入了甜食的 “陷阱” —— 一个月里十几次打卡甜品店。</p>
+                        <p>2024 年下半年，身体开始发出预警信号：频繁口渴到半夜起床喝水，稍微活动就浑身乏力。直到确诊报告摆在眼前，那些被他无视的细节瞬间串联起来，满心只剩追悔莫及。</p>
+                    </div>
+                    <div class="case-img-box">
+                        <img src="小兰报告单.jpg" class="report-img normal-version" alt="体检报告">
+                        <img src="报告标红.jpg" class="report-img red-version" alt="报告标红">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="section-age">
+            <div class="s2-container">
+                <div class="s2-left-pane">
+                    <div class="year-label" id="year-label">2009</div>
+                    
+                    <div class="desc-box">
+                        <div class="desc-item active" id="desc-2009">
+                            <h3 style="font-size:32px; margin-bottom:20px; color:#333;">2009 年</h3>
+                            慢性病主要集中在中老年阶段，45岁及以上人群占比超过 60.6%，年轻人比例尚处于低位。
+                        </div>
+                        <div class="desc-item" id="desc-2015">
+                            <h3 style="font-size:32px; margin-bottom:20px; color:#333;">2015 年</h3>
+                            趋势开始悄悄发生变化，45岁以下青年段占比有所扩大，慢性病不再是老年人的专属。
+                        </div>
+                        <div class="desc-item" id="desc-2023">
+                            <h3 style="font-size:32px; margin-bottom:20px; color:#d32f2f;">2023 年</h3>
+                            年轻人占比显著上升至 27.3%，年轻化态势已不容忽视，每4个慢性病患者中就有1个是年轻人。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <div id="ageChart" style="width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="section-organs">
+            <div class="organ-wrapper">
+                <img id="img-left" class="pop-img left" src="" alt="">
+                <div id="canvas-container">
+                    <svg class="body-svg" viewBox="0 0 600 800">
+                        <image href="半身图.png" x="-10" y="0" width="600" height="800" />
+                        <g class="organ-group" onmouseenter="showData('brain')" onmouseleave="hideData()">
+                            <image href="大脑.png" x="213" y="37" width="167" />
+                            <polygon class="hit-area" points="270,71 232,104 229,142 245,161 251,166 265,167 280,156 294,150 304,151 317,149 330,142 340,127 351,121 363,113 366,98 366,86 366,84 350,77 346,74 339,71 334,70 331,69 330,63 322,60 311,60 280,64 276,69 266,76 275,69 269,74 300,67 327,69" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('heart')" onmouseleave="hideData()">
+                            <image href="心脏.png" x="275" y="286" width="80" />
+                            <polygon class="hit-area" points="293,300 288,344 320,377 326,379 330,368 336,357 336,338 336,328 326,313 314,300" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('liver')" onmouseleave="hideData()">
+                            <image href="肝.png" x="211" y="405" width="149" />
+                            <polygon class="hit-area" points="237,417 220,434 220,480 223,484 230,477 240,473 260,466 275,449 293,452 305,447 312,442 330,431 350,424 344,418 320,411" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('lungs')" onmouseleave="hideData()">
+                            <image href="肺.png" x="203" y="282" width="200" />
+                            <polygon class="hit-area" points="293,376 256,352 228,314 217,322 203,350 200,362 198,375 198,381 198,391 208,395 217,398 238,393 255,395 258,395 270,389 273,394" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('spine')" onmouseleave="hideData()">
+                            <image href="颈椎.png" x="272" y="183" width="55" />
+                            <polygon class="hit-area" points="288,211 289,266 320,264 314,207 312,207 299,209" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('stomach')" onmouseleave="hideData()">
+                            <image href="胃.png" x="314" y="360" width="133" />
+                            <polygon class="hit-area" points="339,401 330,458 385,467 398,439 398,419 398,409 378,405 372,398 347,392 339,391" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('pancreas')" onmouseleave="hideData()">
+                            <image href="胰腺.png" x="279" y="460" width="125" />
+                            <polygon class="hit-area" points="293,472 285,480 283,491 288,502 298,509 310,507 317,506 327,498 330,490 336,483 342,483 355,484 367,484 382,486 395,477 392,472 377,466 352,463 326,463" />
+                        </g>
+                        <g id="kidney-L" class="organ-group" onmouseenter="showData('kidney')" onmouseleave="hideData()">
+                            <image href="肾.png" x="222" y="494" width="166" />
+                            <polygon class="hit-area" points="255,498 230,520 229,542 243,561 248,563 259,560 263,551 268,512 269,503" />
+                        </g>
+                        <g id="kidney-R" class="organ-group" onmouseenter="showData('kidney')" onmouseleave="hideData()">
+                            <image href="肾.png" x="222" y="494" width="165" />
+                            <polygon class="hit-area" points="347,501 342,512 351,531 349,550 357,563 372,557 382,539 380,519 373,506 368,501 351,496" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('intestine')" onmouseleave="hideData()">
+                            <image href="肠.png" x="225" y="483" width="160" />
+                            <polygon class="hit-area" points="269,522 269,586 350,586 339,522" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('waist')" onmouseleave="hideData()">
+                            <image href="腰间盘.png" x="181" y="385" width="248" />
+                            <polygon class="hit-area" points="199,538 183,570 178,594 188,624 200,645 243,654 259,660 283,669 298,671 312,669 334,669 321,678 320,685 452,591 412,537 306,665 309,672 307,676 315,673 305,674 327,670 317,674" />
+                        </g>
+                        <g class="organ-group" onmouseenter="showData('wrist')" onmouseleave="hideData()">
+                            <image href="手腕.png" x="81" y="517" width="60" />
+                            <polygon class="hit-area" points="106,516 81,677 96,754 105,756 108,751 113,713 113,585 118,555 123,556 138,537 143,530 143,520" />
+                        </g>
+                    </svg>
+                </div>
+                <img id="img-right" class="pop-img right" src="" alt="">
+            </div>
+        </section>
+
+        <section class="section" id="section-portrait">
+            <div class="card-wrapper active" id="gender-card">
+                <div class="dimension-container glass-card">
+                    <h2 class="dimension-title">性别分布画像</h2>
+                    <div class="svg-wrapper">
+                        <svg viewBox="0 0 1024 1024" width="280" height="280">
+                            <defs>
+                                <linearGradient id="gender-gradient" x1="0" y1="1" x2="0" y2="0">
+                                    <stop offset="0%" stop-color="var(--male-color)" />
+                                    <stop offset="60.6%" stop-color="var(--male-color)" />
+                                    <stop offset="60.6%" stop-color="var(--female-color)" />
+                                    <stop offset="100%" stop-color="var(--female-color)" />
+                                </linearGradient>
+                                <mask id="gender-mask">
+                                    <path fill="white" d="M353.801953 694.455029q-26.042064 0-44.271509-18.229444t-18.229444-44.271508q0-18.229445 10.416825-34.288717t27.778202-23.003823l135.41873-53.820265v-78.126191q-46.875714 54.688334-108.942632 83.768638T221.855497 555.564023v-69.445503q59.028677 0 107.206495-24.305926T416.302905 392.367092l46.875715-55.556403q10.416825-12.152963 24.305926-18.229444t29.514338-6.076482h34.722752q15.625238 0 29.514339 6.076482t24.305926 18.229444l46.875714 55.556403q39.063095 45.139577 87.240913 69.445502T846.865023 486.11852v69.445503q-72.049709 0-134.116627-29.080304T603.805763 442.715081v78.126191l135.418731 53.820265q17.361376 6.94455 27.778201 23.003823t10.416825 34.288717q0 26.042064-18.229444 44.271508t-44.271508 18.229444H464.914757v-17.361376q0-22.569788 14.75717-37.326957t37.326957-14.75717h104.168255q7.812619 0 12.586997-4.774378T638.528515 607.648151q0-7.812619-4.774379-12.586998T621.167139 590.286775H516.998884q-36.458889 0-61.632883 25.173995t-25.173995 61.632883v17.361376h-76.390053z m180.558307-416.673017q-28.64627 0-49.045886-20.399617T464.914757 208.336509q0-28.64627 20.399617-49.045887T534.36026 138.891006q28.64627 0 49.045887 20.399616T603.805763 208.336509q0 28.64627-20.399616 49.045886T534.36026 277.782012z"/>
+                                </mask>
+                            </defs>
+                            <rect width="1024" height="1024" fill="url(#gender-gradient)" mask="url(#gender-mask)" />
+                        </svg>
+                    </div>
+                    <div class="legend">
+                        <div><span class="legend-dot" style="background:var(--male-color)"></span>男性 60.6%</div>
+                        <div><span class="legend-dot" style="background:var(--female-color)"></span>女性 39.4%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-wrapper" id="urban-card">
+                <div class="dimension-container glass-card">
+                    <h2 class="dimension-title">城乡分布画像</h2>
+                    <div class="svg-wrapper">
+                        <svg viewBox="0 0 1024 1024" width="280" height="280">
+                            <defs>
+                                <linearGradient id="urban-gradient" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="42.9%" stop-color="var(--urban-color)" />
+                                    <stop offset="42.9%" stop-color="var(--rural-color)" />
+                                </linearGradient>
+                                <mask id="building-mask">
+                                    <g fill="white">
+                                        <path d="M857.4 498.1h-256c-20.2 0-36.7 16.5-36.7 36.7v452.5c0 20.2 16.5 36.7 36.7 36.7h159.5v-96.9c0-8.5 6.9-15.4 15.4-15.4h47.8c8.5 0 15.4 6.9 15.4 15.4v96.9h17.8c20.2 0 36.7-16.5 36.7-36.7V534.8c0.1-20.2-16.4-36.7-36.6-36.7zM704 941.9c0 8.2-6.6 14.9-14.8 14.9h-48.9c-8.1 0-14.9-6.7-14.9-14.9v-18.8c0-8.2 6.7-14.9 14.9-14.9h48.9c8.2 0 14.8 6.6 14.8 14.9v18.8z m0-86.9c0 8.2-6.6 14.9-14.8 14.9h-48.9c-8.1 0-14.9-6.7-14.9-14.9v-18.9c0-8.2 6.7-14.9 14.9-14.9h48.9c8.2 0 14.8 6.7 14.8 14.9V855z m0-86.9c0 8.1-6.6 14.8-14.8 14.8h-48.9c-8.1 0-14.9-6.7-14.9-14.8v-18.9c0-8.2 6.7-14.9 14.9-14.9h48.9c8.2 0 14.8 6.7 14.8 14.9v18.9z m0-87c0 8.2-6.6 14.9-14.8 14.9h-48.9c-8.1 0-14.9-6.7-14.9-14.9v-18.9c0-8.1 6.7-14.9 14.9-14.9h48.9c8.2 0 14.8 6.7 14.8 14.9v18.9z m0-86.9c0 8.1-6.6 14.9-14.8 14.9h-48.9c-8.1 0-14.9-6.7-14.9-14.9v-18.9c0-8.1 6.7-14.8 14.9-14.8h48.9c8.2 0 14.8 6.7 14.8 14.8v18.9zM833.2 855c0 8.2-6.7 14.9-14.8 14.9h-49c-8.1 0-14.8-6.7-14.8-14.9v-18.9c0-8.2 6.7-14.9 14.8-14.9h49c8 0 14.8 6.7 14.8 14.9V855z m0-86.9c0 8.1-6.7 14.8-14.8 14.8h-49c-8.1 0-14.8-6.7-14.8-14.8v-18.9c0-8.2 6.7-14.9 14.8-14.9h49c8 0 14.8 6.7 14.8 14.9v18.9z m0-87c0 8.2-6.7 14.9-14.8 14.9h-49c-8.1 0-14.8-6.7-14.8-14.9v-18.9c0-8.1 6.7-14.9 14.8-14.9h49c8 0 14.8 6.7 14.8 14.9v18.9z m0-86.9c0 8.1-6.7 14.9-14.8 14.9h-49c-8.1 0-14.8-6.7-14.8-14.9v-18.9c0-8.1 6.7-14.8 14.8-14.8h49c8 0 14.8 6.7 14.8 14.8v18.9z" />
+                                        <path d="M452.4 301.4h-0.6c-0.3-25.6-19.1-46.8-43.6-51v-9c0-29.3-24-53.3-53.3-53.3h-16.3l-11-166c0-12.2-4.1-22-9.4-22-5.1 0-9.4 9.9-9.4 22l-11 166h-16.2c-29.3 0-53.3 24-53.3 53.3v9c-24.5 4.2-43.2 25.4-43.5 51h-0.6c-29.3 0-53.3 24-53.3 53.3v628.1c0 20.2 16.5 36.7 36.7 36.7h67.1c0.8 0 1.6 0.2 2.5 0.2h34.4V893c0-3.3 2.7-5.9 5.9-5.9h81.9c3.3 0 5.9 2.7 5.9 5.9v126.8h33.8c0.8 0 1.6-0.2 2.5-0.2H469c20.2 0 36.7-16.6 36.7-36.7V354.7c0-29.3-24-53.3-53.3-53.3z m-51.7 503.7H234.4c-12." />
+                                    </g>
+                                </mask>
+                            </defs>
+                            <rect width="1024" height="1024" fill="url(#urban-gradient)" mask="url(#building-mask)" />
+                        </svg>
+                    </div>
+                    <div class="legend">
+                        <div><span class="legend-dot" style="background:var(--urban-color)"></span>城镇 42.9%</div>
+                        <div><span class="legend-dot" style="background:var(--rural-color)"></span>乡村 57.1%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-wrapper" id="job-card">
+                <div class="dimension-container glass-card">
+                    <h2 class="dimension-title">职业分布画像</h2>
+                    <div class="svg-wrapper">
+                         <svg viewBox="0 0 1024 1024" width="220" height="220">
+                            <defs>
+                                <linearGradient id="job-gradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="var(--rare-color)" />
+                                    <stop offset="25%" stop-color="var(--rare-color)" />
+                                    
+                                    <stop offset="25%" stop-color="var(--civil-color)" />
+                                    <stop offset="60%" stop-color="var(--civil-color)" />
+                                    
+                                    <stop offset="60%" stop-color="var(--staff-color)" />
+                                    <stop offset="100%" stop-color="var(--staff-color)" />
+                                </linearGradient>
+                                <mask id="job-mask">
+                                    <path fill="white" d="M586.752 164.864c28.672 0 51.712-23.552 51.712-52.224s-23.04-52.224-51.712-52.224-51.712 23.552-51.712 52.224c-0.512 29.184 23.04 52.224 51.712 52.224z m130.56 270.848V540.16h-95.744c-10.24-32.768-30.72-76.8-69.632-121.344v-25.6l12.8-71.168s15.36-17.92 25.6-2.56c0 0-2.56 21.504 40.448 44.544l50.688 18.944s27.648 10.24 32.768-5.12c0 0 10.24-23.04-5.12-28.16l-45.568-25.6s-53.248-35.328-50.688-81.408c0 0-9.216-50.688-54.784-65.536 0 0-23.04-17.92-50.688-7.68l-120.32 55.296s-17.408 10.24-17.408 23.04v119.808s-3.072 23.04 12.288 23.04c0 0 26.624-8.704 26.624-16.384l1.024-90.624s3.072-7.168 23.04-19.968l20.48-15.36s23.04-15.36 17.92 5.12c0 0-40.448 59.392-40.448 96.256v91.136L347.136 632.32s-3.072 4.608-5.12 10.752h-44.544V747.52H88.064v208.384h209.408V851.456H506.88V747.008h209.408V642.56h209.408V434.176H717.312zM507.904 540.16v104.448h-94.72l62.976-121.344s16.384-41.472 30.208-27.648l39.936 44.544h-38.4z" />
+                                </mask>
+                            </defs>
+                            <rect width="1024" height="1024" fill="url(#job-gradient)" mask="url(#job-mask)" />
+                        </svg>
+                    </div>
+                    <div class="legend">
+                        <div><span class="legend-dot" style="background:var(--rare-color)"></span>其他 3.5%</div>
+                        <div><span class="legend-dot" style="background:var(--civil-color)"></span>公务员 35.4%</div>
+                        <div><span class="legend-dot" style="background:var(--staff-color)"></span>职员 61.4%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-indicator">
+                <div class="indicator-dot active" data-target="gender"></div>
+                <div class="indicator-dot" data-target="urban"></div>
+                <div class="indicator-dot" data-target="job"></div>
+            </div>
+        </section>
+
+        <section class="section" id="section-lifestyle">
+            <div id="stage-intro" class="ls-stage">生活方式画像——谁在让我们身体每况愈下！</div>
+
+            <div id="stage-sleep" class="ls-stage">
+                <div id="sleep-title">熬夜：被延长的白天，正在压缩身体的修复时间</div>
+                <div id="sleep-content">
+                    <div class="img-box"><img id="clock-img" src="时钟10点.png" alt="状态图"></div>
+                    <div id="sleep-text" class="text-box"></div>
+                </div>
+            </div>
+
+            <div id="stage-diet" class="ls-stage">
+                <svg id="diet-line">
+                    <line x1="100%" y1="100%" x2="0%" y2="25%" style="stroke:rgba(255,255,255,0.6); stroke-width:6; stroke-linecap: round;" />
+                </svg>
+                <div id="diet-title">不健康饮食：<br>美味背后，是持续累积的代谢负担</div>
+                <div id="diet-text-container">
+                    <span class="diet-sub-title">年轻人的餐桌，正在被“不健康饮食”占据。</span>
+                    <div class="diet-main-text" id="diet-main-text"></div>
+                </div>
+                <img id="table-img" src="餐桌.png" alt="餐桌">
+                <div id="food-pool">
+                    <img id="food1" class="food-item" src="食物1.png">
+                    <img id="food2" class="food-item" src="食物2.png">
+                    <img id="food3" class="food-item" src="食物3.png">
+                    <img id="food4" class="food-item" src="食物4.png">
+                    <img id="food5" class="food-item" src="食物5.png">
+                </div>
+            </div>
+
+            <div id="stage-sit" class="ls-stage">
+                <div id="sit-title">熬夜：被延长的白天，正在压缩身体的修复时间</div>
+                <div id="sit-text-container">
+                    <div id="sit-main-text">相比熬夜和饮食，久坐往往更难被意识到其风险。</div>
+                </div>
+                <div id="sit-image-area"></div>
+            </div>
+
+            <div id="stage-smoke" class="ls-stage">
+                <div id="smoke-title">烟与酒：慢性病的猛烈“加速器”</div>
+                <img id="dice-img" src="骰子.png" alt="骰子">
+                <div id="smoke-text-container">
+                    <div id="smoke-main-text"></div>
+                </div>
+                <img id="wine-img" class="smoke-assets" src="酒.png" alt="酒">
+                <img id="smoke-img" class="smoke-assets" src="烟1.png" alt="烟">
+            </div>
+        </section>
+
+        <section class="section" id="section-rx">
+            <div class="prescription-wrapper">
+                <div class="icon-bar">
+                    <div class="icon-btn" onclick="writePrescription('sleep')"><span class="icon-emoji">😴</span><span class="icon-text">拒绝熬夜</span></div>
+                    <div class="icon-btn" onclick="writePrescription('food')"><span class="icon-emoji">🥗</span><span class="icon-text">均衡膳食</span></div>
+                    <div class="icon-btn" onclick="writePrescription('sport')"><span class="icon-emoji">🏃</span><span class="icon-text">适度运动</span></div>
+                    <div class="icon-btn" onclick="writePrescription('quit')"><span class="icon-emoji">🍺</span><span class="icon-text">戒烟限酒</span></div>
+                </div>
+                <div class="rx-paper glass-card" id="paper">
+                    <div class="rx-symbol" style="position:absolute; top:20px; left:20px; font-size:40px; opacity:0.1; font-style:italic;">Rx</div>
+                    <div class="paper-header"><h3 style="letter-spacing:4px;">健康处方单</h3><p style="font-size:12px; color:#aaa; margin-top:5px;">NO. 2024001 | 姓名：每一位奋斗者</p></div>
+                    <div id="rx-content">
+                        <div class="content-line" id="line-1">点击左侧图标获取针对性建议...</div>
+                        <div class="content-line" id="line-2"></div>
+                        <div class="content-line" id="line-3"></div>
+                    </div>
+                    <div class="doctor-sign" style="text-align:right; margin-top:30px; font-size:14px; color:#999;"><p>医师签名：数据新闻实验室</p><p>日期：2024.12.30</p></div>
+                    <div class="stamp" id="stamp-node">建议执行</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        /* ==================== 全局状态总线 ==================== */
+        let globalPageIndex = 0; // 0-Case, 1-Age, 2-Organs, 3-Portrait, 4-Lifestyle, 5-Rx
+        const TOTAL_PAGES = 6;
+        let isGlobalScrolling = false;
+
+        /* ==================== 1. 案例部分逻辑 ==================== */
+        let caseStep = 0; // 0:Title, 1:Normal, 2:Alert
+        function updateCaseSection(direction) {
+            const titleSlide = document.getElementById('case-title');
+            const contentSlide = document.getElementById('case-content');
+            const textBox = document.getElementById('case-text');
+
+            if (direction === 'down') {
+                if (caseStep === 0) {
+                    caseStep = 1; titleSlide.classList.add('fade-out'); contentSlide.classList.add('active');
+                } else if (caseStep === 1) {
+                    caseStep = 2; contentSlide.classList.add('alert-state'); textBox.classList.add('alert-mode');
+                } else {
+                    scrollGlobal('down');
+                }
+            } else {
+                if (caseStep === 2) {
+                    caseStep = 1; contentSlide.classList.remove('alert-state'); textBox.classList.remove('alert-mode');
+                } else if (caseStep === 1) {
+                    caseStep = 0; titleSlide.classList.remove('fade-out'); contentSlide.classList.remove('active');
+                }
+            }
+        }
+
+        /* ==================== 2. 年龄图表逻辑 ==================== */
+        const ageChart = echarts.init(document.getElementById('ageChart'));
+        const years = ['2009', '2015', '2023'];
+        const ageData = {
+            '2009': [{ value: 16.4, name: '18-44岁' }, { value: 30.3, name: '45-59岁' }, { value: 40.3, name: '≥60岁' }],
+            '2015': [{ value: 19.4, name: '18-44岁' }, { value: 32.6, name: '45-59岁' }, { value: 42.3, name: '≥60岁' }],
+            '2023': [{ value: 27.3, name: '18-44岁' }, { value: 35.9, name: '45-59岁' }, { value: 46.5, name: '≥60岁' }]
+        };
+        let s2Index = 0;
+
+        function updateAgeChart(idx) {
+            const year = years[idx];
+            // 更新年份水印
+            document.getElementById('year-label').innerText = year;
+            
+            // 更新文字描述状态
+            document.querySelectorAll('.desc-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`desc-${year}`).classList.add('active');
+            
+            // 更新图表
+            ageChart.setOption({
+                series: [{
+                    type: 'pie',
+                    radius: ['30%', '68%'],
+                    center: ['54%', '50%'], 
+                    roseType: 'radius',
+                    itemStyle: { borderRadius: 12, borderColor: '#fff', borderWidth: 6 },
+                    label: { show: true, fontSize: 14, color: '#666', formatter: '{b}\n{c}%' },
+                    data: ageData[year].map((item, i) => ({ ...item, itemStyle: { color: ['#fbd176', '#ffccd3', '#f5cdec'][i] } })),
+                    animationDuration: 1000
+                }]
+            });
+        }
+
+        /* ==================== 3. 器官交互逻辑 ==================== */
+        const organData = {
+            'brain': { name: '大脑: 神经衰弱', imgUrl: '神经衰弱.svg', position: 'right' },
+            'heart': { name: '心脏: 高血压/冠心病', leftImg: '高血压.svg', rightImg: '冠心病.svg' },
+            'liver': { name: '肝脏: 脂肪肝', imgUrl: '脂肪肝.svg', position: 'left' },
+            'lungs': { name: '肺部: 慢阻肺', imgUrl: '慢阻肺.svg', position: 'left' },
+            'stomach': { name: '胃: 慢性胃炎', imgUrl: '胃炎.svg', position: 'right' },
+            'kidney': { name: '肾脏: 慢性肾病', imgUrl: '肾病.svg', position: 'left' },
+            'pancreas': { name: '胰腺: 糖尿病', imgUrl: '糖尿病.svg', position: 'right' },
+            'intestine': { name: '肠道: 慢性肠炎', imgUrl: '慢性肠炎.svg', position: 'left' },
+            'spine': { name: '颈椎: 颈椎病', imgUrl: '颈椎病.svg', position: 'left' },
+            'waist': { name: '腰椎: 腰椎病', imgUrl: '腰椎病.svg', position: 'right' },
+            'wrist': { name: '手腕: 腱鞘炎', imgUrl: '腱鞘炎.svg', position: 'left' }
+        };
+        const leftImgEl = document.getElementById('img-left');
+        const rightImgEl = document.getElementById('img-right');
+        const tooltip = document.getElementById('organ-tooltip');
+
+        function showData(key) {
+            const data = organData[key]; if (!data) return;
+            
+            tooltip.innerText = data.name;
+            tooltip.style.opacity = '1';
+
+            if (data.leftImg && data.rightImg) {
+                leftImgEl.src = data.leftImg; leftImgEl.classList.add('active');
+                rightImgEl.src = data.rightImg; rightImgEl.classList.add('active');
+            } else {
+                const target = data.position === 'left' ? leftImgEl : rightImgEl;
+                const other = data.position === 'left' ? rightImgEl : leftImgEl;
+                other.classList.remove('active');
+                target.src = data.imgUrl; target.classList.add('active');
+            }
+        }
+
+        function hideData() { 
+            leftImgEl.classList.remove('active'); 
+            rightImgEl.classList.remove('active');
+            tooltip.style.opacity = '0';
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            if (tooltip.style.opacity === '1') {
+                tooltip.style.left = e.clientX + 'px';
+                tooltip.style.top = e.clientY + 'px';
+            }
+        });
+
+        /* ==================== 4. 人群画像逻辑 ==================== */
+        let s4CurrentCard = 'gender';
+        const cardList = ['gender', 'urban', 'job'];
+        let isS4Switching = false;
+
+        function switchCard(targetCard, isReverse = false) {
+            if (isS4Switching) return;
+            isS4Switching = true;
+            const currentDom = document.getElementById(`${s4CurrentCard}-card`);
+            const targetDom = document.getElementById(`${targetCard}-card`);
+            currentDom.classList.remove('active'); currentDom.classList.add('slide-out');
+            setTimeout(() => {
+                cardList.forEach(id => document.getElementById(`${id}-card`).classList.remove('slide-out'));
+                targetDom.classList.add('active'); s4CurrentCard = targetCard; updateIndicators(); isS4Switching = false;
+            }, 600);
+        }
+        function updateIndicators() {
+            document.querySelectorAll('.indicator-dot').forEach(dot => { dot.classList.toggle('active', dot.dataset.target === s4CurrentCard); });
+        }
+
+        /* ==================== 5. 生活方式逻辑 ==================== */
+        let lsSection = 0; 
+        let sleepStep = 1, dietStep = 0, sitStep = 0, smokeStep = 0;
+
+        function handleLifestyleScroll(deltaY) {
+            if (lsSection === 0 && deltaY < 0) { scrollGlobal('up'); return; }
+            if (lsSection === 4 && smokeStep === 3 && deltaY > 0) { scrollGlobal('down'); return; }
+
+            if (deltaY > 0) {
+                if (lsSection === 0) {
+                    lsSection = 1;
+                    document.getElementById('stage-intro').style.transform = 'translateY(-100%)';
+                    document.getElementById('stage-sleep').style.transform = 'translateY(0)';
+                    document.getElementById('sleep-title').style.top = '88%';
+                    renderSleep();
+                } else if (lsSection === 1 && sleepStep === 3) {
+                    lsSection = 2;
+                    document.getElementById('stage-sleep').style.transform = 'translateY(-100%)';
+                    document.getElementById('stage-diet').style.transform = 'translateY(0)';
+                    setTimeout(initDiet, 500);
+                } else if (lsSection === 2 && dietStep === 3) {
+                    lsSection = 3;
+                    document.getElementById('stage-diet').style.transform = 'translateY(-100%)';
+                    document.getElementById('stage-sit').style.transform = 'translateY(0)';
+                    setTimeout(initSit, 500);
+                } else if (lsSection === 3 && sitStep === 3) {
+                    lsSection = 4;
+                    document.getElementById('stage-sit').style.transform = 'translateY(-100%)';
+                    document.getElementById('stage-smoke').style.transform = 'translateY(0)';
+                    setTimeout(initSmoke, 500);
+                }
+            } else {
+                if (lsSection === 1) {
+                    lsSection = 0;
+                    document.getElementById('stage-sleep').style.transform = 'translateY(100%)';
+                    document.getElementById('stage-intro').style.transform = 'translateY(0)';
+                } else if (lsSection === 2) {
+                    lsSection = 1;
+                    document.getElementById('stage-diet').style.transform = 'translateY(100%)';
+                    document.getElementById('stage-sleep').style.transform = 'translateY(0)';
+                } else if (lsSection === 3) {
+                    lsSection = 2;
+                    document.getElementById('stage-sit').style.transform = 'translateY(100%)';
+                    document.getElementById('stage-diet').style.transform = 'translateY(0)';
+                } else if (lsSection === 4) {
+                    lsSection = 3;
+                    document.getElementById('stage-smoke').style.transform = 'translateY(100%)';
+                    document.getElementById('stage-sit').style.transform = 'translateY(0)';
+                }
+            }
+        }
+
+        document.getElementById('section-lifestyle').addEventListener('click', function() {
+            if (globalPageIndex !== 4) return;
+            if (lsSection === 1 && sleepStep < 3) { sleepStep++; renderSleep(); }
+            else if (lsSection === 2 && dietStep < 3) { dietStep++; renderDiet(); }
+            else if (lsSection === 3 && sitStep < 3) { sitStep++; renderSit(); }
+            else if (lsSection === 4 && smokeStep < 3) { smokeStep++; renderSmoke(); }
+        });
+
+        // --- 渲染逻辑 ---
+        function renderSleep() {
+            const txt = document.getElementById('sleep-text'); const img = document.getElementById('clock-img');
+            if (sleepStep === 1) { img.src = "时钟10点.png"; txt.innerHTML = "睡眠不足，是年轻慢性病患者中最常见的生活特征之一"; }
+            else if (sleepStep === 2) { img.src = "时钟12点.png"; txt.innerHTML = `<span style="font-weight:bold;">睡眠不足...</span><br>47%的人在12点后入睡，00后高达52%。`; }
+            else if (sleepStep === 3) { img.src = "时钟2点.png"; txt.innerHTML = `<span style="font-weight:bold;">睡眠不足...</span><br>熬夜增加蛋白尿风险70%，15年后肾功能下降比率高出23%。`; }
+        }
+        function initDiet() { document.getElementById('diet-title').style.opacity = '1'; document.getElementById('diet-text-container').style.opacity = '1'; document.getElementById('table-img').style.opacity = '1'; dietStep = 1; renderDiet(); }
+        
+        function renderDiet() {
+            const pathPoints = [{x: 10, y: 32.5}, {x: 32, y: 49}, {x: 54, y: 65.5}, {x: 76, y: 82}];
+            const setPos = (id, idx, op=1) => { 
+                const el = document.getElementById(id); 
+                el.style.left=pathPoints[idx].x+'%'; 
+                el.style.top=pathPoints[idx].y+'%'; 
+                el.style.opacity=op; 
+            };
+            
+            // 显式重置所有状态
+            if (dietStep === 1) { 
+                setPos('food1', 1, 1); setPos('food2', 2, 1); setPos('food3', 3, 1); 
+                setPos('food4', 3, 0); setPos('food5', 3, 0); // 隐藏后续图片
+            }
+            else if (dietStep === 2) { 
+                setPos('food1', 0, 0); // 移出画面
+                setPos('food2', 1, 1); setPos('food3', 2, 1); setPos('food4', 3, 1); 
+                setPos('food5', 3, 0); 
+                document.getElementById('diet-main-text').innerHTML = `超98%青年奶制品摄入不足，73.6%蔬菜摄入不够。`; 
+            }
+            else if (dietStep === 3) { 
+                setPos('food1', 0, 0); 
+                setPos('food2', 0, 0); // 移出画面
+                setPos('food3', 1, 1); setPos('food4', 2, 1); setPos('food5', 3, 1); 
+                document.getElementById('diet-main-text').innerHTML = `外卖加剧问题，每天≥2次外卖，全因死亡风险增加49%。`; 
+            }
+        }
+
+        function initSit() { document.getElementById('sit-title').style.top = '88%'; document.getElementById('sit-text-container').style.opacity = '1'; sitStep = 1; renderSit(); }
+        
+        function renderSit() {
+            const area = document.getElementById('sit-image-area'); const mainText = document.getElementById('sit-main-text');
+            const textCont = document.getElementById('sit-text-container');
+
+            if (sitStep === 1) { 
+                area.innerHTML = `
+                    <img src="工作1.png" id="work1" class="sit-img" style="width:500px; left:50%; top:50%;">
+                    <img src="语录1.png" id="quote1" class="sit-img quote-img" style="width:300px; left:35%; top:38%;">
+                `; 
+            }
+            else if (sitStep === 2) { 
+                const w1 = document.getElementById('work1');
+                const q1 = document.getElementById('quote1');
+                if (q1) q1.style.opacity = '0';
+                w1.style.width = '450px'; w1.style.left = '35%'; w1.style.top = '55%';
+                textCont.style.top = '40%'; textCont.style.left = '60%'; textCont.style.width = '35%'; textCont.style.textAlign = 'left';
+                mainText.innerHTML = "程序员和媒体人久坐超过9小时，40%超过10小时。"; 
+                area.innerHTML += `
+                    <img src="工作2.png" id="work2" class="sit-img" style="width:250px; left:50%; top:22%; opacity:0;">
+                    <img src="语录2.png" id="quote2" class="sit-img quote-img" style="width:220px; left:62%; top:18%; opacity:0;">
+                `;
+                setTimeout(() => {
+                    document.getElementById('work2').style.opacity = '1';
+                    document.getElementById('quote2').style.opacity = '1';
+                }, 50);
+            }
+            else if (sitStep === 3) { 
+                mainText.innerHTML = "久坐>6小时患12种慢性病风险增加26.7%。"; 
+                 const gridPoints = [
+                    {x: 15, y: 25}, {x: 38, y: 28}, {x: 20, y: 55}, {x: 40, y: 60}, {x: 25, y: 80}
+                ];
+                area.innerHTML = '';
+                gridPoints.forEach((pt, i) => {
+                    const idx = i + 1;
+                    area.innerHTML += `
+                        <img src="工作${idx}.png" class="sit-img" style="width:180px; left:${pt.x}%; top:${pt.y}%;">
+                        <img src="语录${idx}.png" class="sit-img quote-img" style="width:140px; left:${pt.x + 3}%; top:${pt.y - 4}%;">
+                    `;
+                });
+            }
+        }
+        function initSmoke() { document.getElementById('smoke-title').style.opacity = '1'; document.getElementById('dice-img').style.opacity = '1'; smokeStep = 1; }
+        
+        function renderSmoke() {
+            const mainTxt = document.getElementById('smoke-main-text');
+            const dice = document.getElementById('dice-img');
+            const wine = document.getElementById('wine-img');
+            const smoke = document.getElementById('smoke-img');
+            const txtCont = document.getElementById('smoke-text-container');
+
+            if (smokeStep === 2) { 
+                dice.style.opacity = '0'; 
+                wine.style.bottom = '0'; wine.style.right = '0'; 
+                smoke.style.right = '0%'; smoke.style.top = '5%'; 
+                
+                txtCont.style.left = '8%'; txtCont.style.top = '25%';
+                txtCont.style.textAlign = 'justify';
+                
+                mainTxt.innerHTML = "先看吸烟的威胁。北京、上海、深圳等城市的调查数据显示，15岁以上人群吸烟率均接近20%，这一比例在年轻群体中同样不容忽视。吸烟早已被证实是多种慢性病的“共性危险因素”，中国慢性病前瞻性研究（CKB）基于逾50万例受试者的数据发现，吸烟可显著增加56种疾病的发病风险和22种疾病的死亡风险。尤其值得警惕的是青少年吸烟群体——18岁前开始吸烟的男性，若不戒烟，约有一半会因吸烟早死。在2型糖尿病的危险因素中，吸烟的归因占比达12.1%，仅次于高BMI和不健康饮食。"; 
+            }
+            else if (smokeStep === 3) { 
+                smoke.src = "烟2.png"; 
+                mainTxt.innerHTML = "再看饮酒的危害，所谓“适度饮酒有益健康”的说法早已被科学推翻。2023年《柳叶刀》子刊发表的一项涉及51万国人的研究明确指出，任何程度的饮酒都可能损害健康，不存在所谓的“安全饮酒量”。作为世卫组织列为的一类致癌物，酒精的危害还体现在疾病关联的广泛性上。北京大学与英国牛津大学联合开展的研究，基于51.2万成年人12年的随访数据发现，中国男性酒精摄入量与61种疾病的发病风险正相关，不仅包括肝癌、结直肠癌等已知关联疾病，还涵盖肺癌、痛风、白内障等此前未明确关联的病症。"; 
+            }
+        }
+
+
+        /* ==================== 6. 处方单逻辑 ==================== */
+        const rxData = {
+            sleep: ["1. 建立固定的睡眠节律，尝试在23点前入睡。", "2. 睡前30分钟停止使用电子设备。", "3. 保证每日7-8小时的深度修复时间。"],
+            food: ["1. 减少外卖频率，增加膳食纤维摄入。", "2. 控糖、控盐、控油，保护血管弹性。", "3. 细嚼慢咽，给胃粘膜自我修复的时间。"],
+            sport: ["1. 每周至少进行150分钟的中等强度运动。", "2. 久坐一小时，站立拉伸五分钟。", "3. 保持BMI在正常范围，降低代谢负担。"],
+            quit: ["1. 彻底戒烟，远离二手烟暴露环境。", "2. 严格限制酒精摄入，保护肝脏健康。", "3. 用健康的兴趣爱好替代成瘾性依赖。"]
+        };
+        function writePrescription(type) {
+            const lines = rxData[type];
+            const stamp = document.getElementById('stamp-node'); stamp.classList.remove('show');
+            for (let i = 0; i < 3; i++) {
+                const lineNode = document.getElementById(`line-${i + 1}`); lineNode.innerText = "";
+                setTimeout(() => { lineNode.innerText = lines[i]; if (i === 2) setTimeout(() => stamp.classList.add('show'), 500); }, i * 300);
+            }
+        }
+
+        /* ==================== 7. 全局滚轮控制 (Core) ==================== */
+        function scrollGlobal(direction) {
+            if (isGlobalScrolling) return;
+            isGlobalScrolling = true;
+
+            if (direction === 'down' && globalPageIndex < TOTAL_PAGES - 1) {
+                globalPageIndex++;
+            } else if (direction === 'up' && globalPageIndex > 0) {
+                globalPageIndex--;
+            }
+
+            document.getElementById('scroller').style.transform = `translateY(-${globalPageIndex * 100}vh)`;
+            setTimeout(() => { isGlobalScrolling = false; }, 1000);
+        }
+
+        window.addEventListener('wheel', (e) => {
+            if (isGlobalScrolling || isS4Switching) return;
+            const deltaY = e.deltaY;
+            const direction = deltaY > 0 ? 'down' : 'up';
+
+            if (globalPageIndex === 0) { updateCaseSection(direction); }
+            else if (globalPageIndex === 1) { 
+                if (direction === 'down') { if (s2Index < years.length - 1) { s2Index++; updateAgeChart(s2Index); } else scrollGlobal('down'); }
+                else { if (s2Index > 0) { s2Index--; updateAgeChart(s2Index); } else scrollGlobal('up'); }
+            }
+            else if (globalPageIndex === 2) { scrollGlobal(direction); }
+            else if (globalPageIndex === 3) { 
+                const cIdx = cardList.indexOf(s4CurrentCard);
+                if (direction === 'down') { if (cIdx < cardList.length - 1) switchCard(cardList[cIdx + 1]); else scrollGlobal('down'); }
+                else { if (cIdx > 0) switchCard(cardList[cIdx - 1], true); else scrollGlobal('up'); }
+            }
+            else if (globalPageIndex === 4) { handleLifestyleScroll(deltaY); }
+            else { if (direction === 'up') scrollGlobal('up'); }
+        }, { passive: false });
+
+        document.querySelectorAll('.indicator-dot').forEach(dot => {
+            dot.addEventListener('click', () => switchCard(dot.dataset.target));
+        });
+
+        window.onload = () => { updateAgeChart(0); };
+        window.onresize = () => { ageChart.resize(); };
+    </script>
+</body>
+</html>
